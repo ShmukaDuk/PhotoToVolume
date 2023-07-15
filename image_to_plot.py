@@ -50,7 +50,8 @@ def preprocess_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    data_points = []
+    data_points = []    
+
     for contour in contours:
         arc_length = cv2.arcLength(contour, True)
         min_arc_length_threshold = 100
@@ -58,8 +59,29 @@ def preprocess_image(image):
             for point in contour:
                 x, y = point[0]
                 data_points.append((x, y))
+
     data_points = np.array(data_points)
+    
+    lowest_x = np.min(data_points[:, 0])
+    lowest_y = np.min(data_points[:, 1])
+    highest_x = np.max(data_points[:, 0])
+    highest_y = np.max(data_points[:, 1])
+    print("Lowest x:", lowest_x)
+    print("Lowest y:", lowest_y)
+    print("Highest x:", highest_x)
+    print("Highest y:", highest_y)
+    
+    image_pot_width = highest_x - lowest_x
+    image_pot_height = highest_y - lowest_y
+    scale_x = (POT_WIDTH_CM / image_pot_width) * 10
+    scale_y = (POT_HEIGHT_CM / image_pot_height) * 10
+    scaled_image = cv2.resize(image, (int(image.shape[1] * scale_x), int(image.shape[0] * scale_y)), interpolation=cv2.INTER_LINEAR)
+
+    # Save the image with contours and annotations
+    cv2.imwrite("images/processed_image.jpg", scaled_image)
+    
     return data_points
+
 
 def filter_sort_data_points(data_points):
     leftmost_idx = np.argmin(data_points[:, 0])
@@ -110,11 +132,24 @@ def scale_data_points(interpolated_points_flipped, pot_height_cm, pot_width_cm, 
     data_points_mm = np.array(scaled_data_points_mm)
     return data_points_mm
 
-def calculate_volume(data_points_mm, degree, pot_height_cm, pot_width_cm):
+def generate_polynomial(data_points_mm):
+    degree = 5
     x_coords_mm = data_points_mm[:, 1]
     y_coords_mm = data_points_mm[:, 0]
     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
     polynomial = np.poly1d(coefficients)
+    image = cv2.imread("images/processed_image.jpg")
+    # Draw circles on the image
+        
+    # todo plot poly over the scaled image
+
+    cv2.imwrite("images/processed_image_plot.jpg", image)
+
+    return polynomial
+
+def calculate_volume(polynomial, data_points_mm):
+    x_coords_mm = data_points_mm[:, 1]
+    y_coords_mm = data_points_mm[:, 0]
     x_values = np.linspace(min(x_coords_mm), max(x_coords_mm), 10)
     y_values = polynomial(x_values)
     area = trapz(y_values, x_values)
@@ -122,6 +157,41 @@ def calculate_volume(data_points_mm, degree, pot_height_cm, pot_width_cm):
     volume_cm3 = volume * MM3_TO_CM3
     litres = volume_cm3 * CM3_TO_L
     return litres
+
+
+def plot_polynomial(image, data_points_mm, polynomial):
+    fig, ax = plt.subplots()
+    ax.imshow(image)
+    ax.scatter(data_points_mm[:, 1], data_points_mm[:, 0], c='blue', label='Data Points')
+    x_values = np.linspace(0, POT_HEIGHT_CM, 100)
+    y_values = polynomial(x_values * CM_TO_MM)
+
+
+def scale_image_to_mm(image, interpolated_points_flipped):
+    highest_y_mm = np.max(interpolated_points_flipped[:, 0])
+    highest_x_mm = np.max(interpolated_points_flipped[:, 1])
+    y_ratio = ((POT_WIDTH_CM / 2) / highest_y_mm) * CM_TO_MM
+    x_ratio = (POT_HEIGHT_CM / highest_x_mm) * CM_TO_MM
+    height, width = image.shape[:2]
+    target_width, target_height = height*y_ratio, width * x_ratio
+
+    # Calculate the scaling ratios
+    width_ratio = target_width / width
+    height_ratio = target_height / height
+
+    # Determine the final scaling ratio
+    final_ratio = min(width_ratio, height_ratio)
+
+    # Calculate the new dimensions
+    new_width = int(width * final_ratio)
+    new_height = int(height * final_ratio)
+
+    # Resize the image using the calculated dimensions
+    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+    rotated_image = cv2.rotate(resized_image, cv2.ROTATE_90_CLOCKWISE)
+
+    cv2.imwrite("resized_image_path.jpg", rotated_image)
+    
 
 def calculate_volume_from_image():
     # Set constants
@@ -145,11 +215,17 @@ def calculate_volume_from_image():
 
     # Scale data points
     data_points_mm = scale_data_points(interpolated_points_flipped, POT_HEIGHT_CM, POT_WIDTH_CM, CM_TO_MM)
-
+    # scale_image_to_mm(image, interpolated_points_flipped)
     # Calculate volume
-    degree = 5
-    volume_litres = calculate_volume(data_points_mm, degree, POT_HEIGHT_CM, POT_WIDTH_CM)
-
+    degree = 5 #increase for wierd pot shapes
+    
+    poly = generate_polynomial(data_points_mm)
+    
+    volume_litres = calculate_volume(poly, data_points_mm)   
+    
+    plot_polynomial(resized_image, data_points_mm, poly) 
+    
+    
     return volume_litres
 
 # Example usage

@@ -3,6 +3,13 @@ This python script will let you convert a photo of a flower pot to volume (given
 PhotoToVolume
 PhotoToVolume is a Python application that calculates the volume of a pot based on an input image. It utilizes image processing techniques, contour extraction, interpolation, and mathematical modeling to estimate the pot's volume.
 
+
+
+
+
+![Need photo look like this:](images/pot.jpg)
+
+![Will crop background and plot points: ](images/cropped_pot.jpg)
 Dependencies
 cv2
 numpy

@@ -21,6 +21,9 @@ These dependencies can be installed by running the following command:
 
 Copy code
 pip install -r requirements.txt
+or
+conda env create -f environment.txt
+
 Usage
 Prepare the input image by removing the background and saving the cropped pot image to the images directory. You can use the prep_image() function provided in the code.
 

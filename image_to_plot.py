@@ -13,27 +13,21 @@ POT_WIDTH_CM = 33
 CM_TO_MM = 10
 MM3_TO_CM3 = 0.001
 CM3_TO_L = 0.001
-
 def prep_image():
     # Store path of the image in the variable input_path
     input_path = 'images/pot.jpg'
 
     # Store path of the output image in the variable output_path
-    output_path = 'images/cropped_pot.jpg'
+    output_path = 'images/cropped_pot.png'  # Save as PNG for transparent background
 
     # Processing the image
     input = Image.open(input_path)
 
-    # Removing the background from the given Image
+    # Removing the background from the given image
     output = remove(input)
 
-    # Convert the RGBA image to RGB mode
-    output_rgb = output.convert("RGB")
-
-    # Save the converted image as JPEG
-    output_rgb.save(output_path)
-    #Saving the image in the given path
-
+    # Save the image with transparency as PNG
+    output.save(output_path)
 
 
 def resize_image(image, target_size):
@@ -45,12 +39,26 @@ def resize_image(image, target_size):
         target_width = int(target_height * aspect_ratio)
     resized_image = cv2.resize(image, (target_width, target_height), interpolation=cv2.INTER_LANCZOS4)
     return resized_image
-
 def preprocess_image(image):
+    # Convert the image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, threshold = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+
+    # Threshold the grayscale image to create a binary mask
+    _, threshold = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+
+    # Find contours in the binary mask
     contours, _ = cv2.findContours(threshold, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    data_points = []    
+
+    # Create a copy of the original image with 3 color channels (BGR)
+    outlined_image = image.copy()
+
+    # Draw the contours on the outlined image
+    cv2.drawContours(outlined_image, contours, -1, (0, 255, 0), 2)
+
+    # Save the outlined image as PNG with transparency
+    cv2.imwrite("images/contoured_image.png", outlined_image)
+
+    data_points = []
 
     for contour in contours:
         arc_length = cv2.arcLength(contour, True)
@@ -61,7 +69,7 @@ def preprocess_image(image):
                 data_points.append((x, y))
 
     data_points = np.array(data_points)
-    
+
     lowest_x = np.min(data_points[:, 0])
     lowest_y = np.min(data_points[:, 1])
     highest_x = np.max(data_points[:, 0])
@@ -70,17 +78,23 @@ def preprocess_image(image):
     print("Lowest y:", lowest_y)
     print("Highest x:", highest_x)
     print("Highest y:", highest_y)
-    
+
     image_pot_width = highest_x - lowest_x
     image_pot_height = highest_y - lowest_y
     scale_x = (POT_WIDTH_CM / image_pot_width) * 10
     scale_y = (POT_HEIGHT_CM / image_pot_height) * 10
     scaled_image = cv2.resize(image, (int(image.shape[1] * scale_x), int(image.shape[0] * scale_y)), interpolation=cv2.INTER_LINEAR)
 
-    # Save the image with contours and annotations
-    cv2.imwrite("images/processed_image.jpg", scaled_image)
-    
+    # Draw contours on the scaled image
+    cv2.drawContours(scaled_image, contours, -1, (0, 255, 0), 2)
+
+    # Save the image with contours
+    cv2.imwrite("images/contoured_image.jpg", scaled_image)
+
     return data_points
+
+
+
 
 
 def filter_sort_data_points(data_points):
@@ -195,7 +209,7 @@ def scale_image_to_mm(image, interpolated_points_flipped):
 
 def calculate_volume_from_image():
     # Set constants
-    isolated_image_path = 'images/cropped_pot.jpg'
+    isolated_image_path = 'images/cropped_pot.png'
 
     # Read the image
     image = cv2.imread(isolated_image_path)

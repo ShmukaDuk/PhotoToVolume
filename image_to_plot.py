@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 
 
 
-POT_HEIGHT_CM = 20
-POT_WIDTH_CM = 20
+POT_HEIGHT_CM = 18
+POT_WIDTH_CM = 24
 
 CM_TO_MM = 10
 MM3_TO_CM3 = 0.001
@@ -73,22 +73,7 @@ def preprocess_image(image):
                 data_points.append((x, y))
 
     data_points = np.array(data_points)
-
-    lowest_x = np.min(data_points[:, 0])
-    lowest_y = np.min(data_points[:, 1])
-    highest_x = np.max(data_points[:, 0])
-    highest_y = np.max(data_points[:, 1])
-    print("Lowest x:", lowest_x)
-    print("Lowest y:", lowest_y)
-    print("Highest x:", highest_x)
-    print("Highest y:", highest_y)
-
-    image_pot_width = highest_x - lowest_x
-    image_pot_height = highest_y - lowest_y
-    scale_x = (POT_WIDTH_CM / image_pot_width) * 10
-    scale_y = (POT_HEIGHT_CM / image_pot_height) * 10
-    scaled_image = cv2.resize(image, (int(image.shape[1] * scale_x), int(image.shape[0] * scale_y)), interpolation=cv2.INTER_LINEAR)
-
+   
     return data_points
 
 
@@ -114,18 +99,28 @@ def filter_sort_data_points(data_points):
     threshold_high = highest_y - (highest_y / 20)
     mask = filtered_data_points[:, 1] < threshold_high
     filtered_data_points = filtered_data_points[mask]
-    sorted_data_points = filtered_data_points[np.argsort(filtered_data_points[:, 0])]
+    sorted_data_points = np.unique(filtered_data_points[~np.isnan(filtered_data_points[:, 0])][np.argsort(filtered_data_points[:, 0])], axis=0)
+    
     return sorted_data_points
 
 def interpolate_flip_data_points(sorted_data_points):
+    _, unique_indices = np.unique(sorted_data_points[:, 1], return_index=True)
+    sorted_data_points = sorted_data_points[unique_indices]
     x_coords = sorted_data_points[:, 0]
     y_coords = sorted_data_points[:, 1]
+    
+   
     interp_func = interp1d(y_coords, x_coords)
+    
     desired_y_values = np.arange(min(y_coords), max(y_coords), 5)
     interpolated_x_values = interp_func(desired_y_values)
     interpolated_points = np.column_stack((interpolated_x_values, desired_y_values))
     highest_y = np.max(sorted_data_points[:, 1])
     interpolated_points_flipped = highest_y - interpolated_points
+    interpolated_points_flipped = interpolated_points_flipped[~np.isnan(interpolated_points_flipped).any(axis=1)]
+
+    # for point in interpolated_points_flipped:
+    #     print(point)
     return interpolated_points_flipped
 
 def scale_data_points(interpolated_points_flipped, pot_height_cm, pot_width_cm, cm_to_mm):
@@ -141,10 +136,8 @@ def scale_data_points(interpolated_points_flipped, pot_height_cm, pot_width_cm, 
 
     highest_y_mm = np.max(filtered_points[:, 0])
     highest_x_mm = np.max(filtered_points[:, 1])
-    print(highest_x_mm, highest_y_mm)
     y_ratio = ((pot_width_cm / 2) / highest_y_mm) * cm_to_mm
     x_ratio = (pot_height_cm / highest_x_mm) * cm_to_mm
-    print("getratiod: ", x_ratio, y_ratio)
     scaled_data_points_mm = []
     for point in filtered_points:
         scaled_point = []
@@ -157,7 +150,7 @@ def scale_data_points(interpolated_points_flipped, pot_height_cm, pot_width_cm, 
     return data_points_mm
 
 def generate_polynomial(data_points_mm):
-    degree = 100
+    degree = 10
     x_coords_mm = data_points_mm[:, 1]
     y_coords_mm = data_points_mm[:, 0]
     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
@@ -171,9 +164,6 @@ def generate_polynomial(data_points_mm):
 
 def calculate_volume(polynomial, data_points_mm):
     x_coords_mm = data_points_mm[:, 1]
-    y_coords_mm = data_points_mm[:, 0]
-    for point in data_points_mm:
-        print(point)
     x_values = np.linspace(min(x_coords_mm), max(x_coords_mm), 10)
     y_values = polynomial(x_values)
     area = trapz(y_values, x_values)

@@ -16,10 +16,6 @@ CM_TO_MM = 10
 MM3_TO_CM3 = 0.001
 CM3_TO_L = 0.001
 
-OG_PHOTO = 'images/pot.jpg'
-POT_NO_BG = 'images/cropped_pot.png'
-POT_WITH_CONTOURS = 'images/contoured_image.png'
-POT_WITH_PLOT = 'images/pot_with_plot'
 def prep_image():
 
 

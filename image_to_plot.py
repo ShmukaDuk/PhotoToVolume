@@ -5,10 +5,12 @@ from PIL import Image
 from scipy.interpolate import interp1d
 from scipy.integrate import trapz, quad
 from rembg import remove
+import matplotlib.pyplot as plt
 
 
-POT_HEIGHT_CM = 33
-POT_WIDTH_CM = 33
+
+POT_HEIGHT_CM = 20
+POT_WIDTH_CM = 20
 
 CM_TO_MM = 10
 MM3_TO_CM3 = 0.001
@@ -17,6 +19,7 @@ CM3_TO_L = 0.001
 OG_PHOTO = 'images/pot.jpg'
 POT_NO_BG = 'images/cropped_pot.png'
 POT_WITH_CONTOURS = 'images/contoured_image.png'
+POT_WITH_PLOT = 'images/pot_with_plot'
 def prep_image():
 
 
@@ -154,7 +157,7 @@ def scale_data_points(interpolated_points_flipped, pot_height_cm, pot_width_cm, 
     return data_points_mm
 
 def generate_polynomial(data_points_mm):
-    degree = 5
+    degree = 100
     x_coords_mm = data_points_mm[:, 1]
     y_coords_mm = data_points_mm[:, 0]
     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
@@ -177,41 +180,47 @@ def calculate_volume(polynomial, data_points_mm):
     volume, error = quad(lambda x: np.pi * polynomial(x)**2, min(x_coords_mm), max(x_coords_mm))
     volume_cm3 = volume * MM3_TO_CM3
     litres = volume_cm3 * CM3_TO_L
+    plot_polynomial(polynomial, min(x_coords_mm), max(x_coords_mm), data_points_mm)
     return litres
 
 
-def plot_polynomial(image, data_points_mm, polynomial):
+def plot_polynomial(polynomial, x_coords_min, x_coords_max, data_points_mm):
+    x = np.linspace(x_coords_min, x_coords_max, 100)
+    y = polynomial(x)
+
+    # Create a new figure
     fig, ax = plt.subplots()
-    ax.imshow(image)
-    ax.scatter(data_points_mm[:, 1], data_points_mm[:, 0], c='blue', label='Data Points')
-    x_values = np.linspace(0, POT_HEIGHT_CM, 100)
-    y_values = polynomial(x_values * CM_TO_MM)
+
+    # Plot the polynomial
+    ax.plot(x, y, color='blue', label='Polynomial')
+
+    # Plot the data points
+    x_data = data_points_mm[:, 1]
+    y_data = data_points_mm[:, 0]
+    ax.scatter(x_data, y_data, color='red', label='Data Points')
+
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_title('Polynomial Plot')
+
+    # Set the aspect ratio to equal
+    ax.set_aspect('equal')
+
+    # Adjust the plot dimensions for equal height and y-axis starting at 0
+    y_range = max(y_data) - min(y_data)
+    x_range = x_coords_max - x_coords_min
+    ratio = y_range / x_range
+    ax.set_xlim([x_coords_min, x_coords_max])
+    ax.set_ylim([0, max(y_data) + ratio * x_range / 2])
+
+    # Show a legend
+    ax.legend()
+
+    # Show the plot
+    plt.show()
 
 
-def scale_image_to_mm(image, interpolated_points_flipped):
-    highest_y_mm = np.max(interpolated_points_flipped[:, 0])
-    highest_x_mm = np.max(interpolated_points_flipped[:, 1])
-    y_ratio = ((POT_WIDTH_CM / 2) / highest_y_mm) * CM_TO_MM
-    x_ratio = (POT_HEIGHT_CM / highest_x_mm) * CM_TO_MM
-    height, width = image.shape[:2]
-    target_width, target_height = height*y_ratio, width * x_ratio
-
-    # Calculate the scaling ratios
-    width_ratio = target_width / width
-    height_ratio = target_height / height
-
-    # Determine the final scaling ratio
-    final_ratio = min(width_ratio, height_ratio)
-
-    # Calculate the new dimensions
-    new_width = int(width * final_ratio)
-    new_height = int(height * final_ratio)
-
-    # Resize the image using the calculated dimensions
-    resized_image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
-    rotated_image = cv2.rotate(resized_image, cv2.ROTATE_90_CLOCKWISE)
-
-    
 
 def calculate_volume_from_image():
 
@@ -233,16 +242,10 @@ def calculate_volume_from_image():
 
     # Scale data points
     data_points_mm = scale_data_points(interpolated_points_flipped, POT_HEIGHT_CM, POT_WIDTH_CM, CM_TO_MM)
-    # scale_image_to_mm(image, interpolated_points_flipped)
-    # Calculate volume
-    degree = 5 #increase for wierd pot shapes
     
     poly = generate_polynomial(data_points_mm)
     
-    volume_litres = calculate_volume(poly, data_points_mm)   
-    
-    # plot_polynomial(resized_image, data_points_mm, poly) 
-    
+    volume_litres = calculate_volume(poly, data_points_mm)
     
     return volume_litres
 

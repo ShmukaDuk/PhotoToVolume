@@ -10,7 +10,7 @@ PhotoToVolume is a Python application that calculates the volume of a pot based 
 
 ![Need photo look like this:](images/pot.jpg)
 
-![Will crop background and plot points: ](images/cropped_pot.jpg)
+![Will crop background and plot points: ](images/contoured_image.png)
 Dependencies
 cv2
 numpy

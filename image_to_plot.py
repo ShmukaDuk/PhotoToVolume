@@ -14,15 +14,14 @@ CM_TO_MM = 10
 MM3_TO_CM3 = 0.001
 CM3_TO_L = 0.001
 
-def prep_image():
-    # Store path of the image in the variable input_path
-    input_path = 'images/pot.jpg'
+OVERLAY_IMAGE= 'images/processed_image.jpg'
+RAW_INPUT_IMAGE= 'images/pot.jpg'
+BG_REMOVED_IMAGE = 'images/cropped_pot.jpg'
 
-    # Store path of the output image in the variable output_path
-    output_path = 'images/cropped_pot.jpg'
+def prep_image():
 
     # Processing the image
-    input = Image.open(input_path)
+    input = Image.open(RAW_INPUT_IMAGE)
 
     # Removing the background from the given Image
     output = remove(input)
@@ -31,7 +30,7 @@ def prep_image():
     output_rgb = output.convert("RGB")
 
     # Save the converted image as JPEG
-    output_rgb.save(output_path)
+    output_rgb.save(BG_REMOVED_IMAGE)
     #Saving the image in the given path
 
 
@@ -78,7 +77,7 @@ def preprocess_image(image):
     scaled_image = cv2.resize(image, (int(image.shape[1] * scale_x), int(image.shape[0] * scale_y)), interpolation=cv2.INTER_LINEAR)
 
     # Save the image with contours and annotations
-    cv2.imwrite("images/processed_image.jpg", scaled_image)
+    cv2.imwrite(OVERLAY_IMAGE, scaled_image)
     
     return data_points
 
@@ -138,7 +137,7 @@ def generate_polynomial(data_points_mm):
     y_coords_mm = data_points_mm[:, 0]
     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
     polynomial = np.poly1d(coefficients)
-    image = cv2.imread("images/processed_image.jpg")
+    image = cv2.imread(OVERLAY_IMAGE)
     # Draw circles on the image
         
     # todo plot poly over the scaled image

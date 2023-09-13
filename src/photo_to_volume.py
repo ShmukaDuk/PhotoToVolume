@@ -22,7 +22,7 @@ class CalculateVolume:
         self.MM3_TO_CM3 = 0.001
         self.CM3_TO_L = 0.001
         self.OG_PHOTO = image_path  # Use the provided image_path
-        self.poly_accuracy = poly_accuracy
+        self.poly_accuracy = int(poly_accuracy)
         # self.image_data = NULL
 
 
@@ -63,11 +63,6 @@ class CalculateVolume:
         cv2.drawContours(outlined_image, contours, -1, (0, 255, 0), 2)
         # Convert BGR image to RGB format (Matplotlib uses RGB)
         outlined_image_rgb = cv2.cvtColor(outlined_image, cv2.COLOR_BGR2RGB)
-
-        # Display the image using Matplotlib
-        # plt.imshow(outlined_image_rgb)
-        # plt.axis('off')  # Turn off axis labels
-        # plt.show()
 
         data_points = []
 
@@ -187,6 +182,7 @@ class CalculateVolume:
 
         # Extract X and Y coordinates
         x_coords = sorted_points[:, 0]
+        self.largest_point = (max(x_coords))
         y_coords = sorted_points[:, 1]
 
         # Define the degree of the polynomial (adjust as needed)
@@ -223,7 +219,7 @@ class CalculateVolume:
     def calculate_volume_from_polygon(self, polygon):
        
 
-        H = 350  # Replace with your desired height
+        H = self.largest_point - 1   # Replace with your desired height
 
         # Number of intervals for integration
         num_intervals = 100
@@ -273,7 +269,7 @@ class CalculateVolume:
 
         print("Volume of the cylinders:", volume / 1000000)
 
-        return volume
+        return volume / 1000000
 
     def calculate_volume(self):
        
@@ -316,7 +312,7 @@ class CalculateVolume:
 
 # Example usage
 if __name__ == "__main__":
-    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 22.5, 35, 10)
+    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 32, 37, 10)
     calculator.prep_image()
     volume_litres = calculator.calculate_volume()
     print("Volume in Liters:", volume_litres)

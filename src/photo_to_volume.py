@@ -5,17 +5,26 @@ from scipy.interpolate import interp1d
 from scipy.integrate import trapz, quad
 from rembg import remove
 import matplotlib.pyplot as plt
+from scipy.integrate import trapz
 
+import numpy as np
+
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # Add this import
 class CalculateVolume:
-    def __init__(self, image_path, pot_width, pot_height):
+    def __init__(self, image_path, pot_width, pot_height, poly_accuracy):
         self.POT_HEIGHT_CM = pot_height
         self.POT_WIDTH_CM = pot_width
         self.CM_TO_MM = 10
         self.MM3_TO_CM3 = 0.001
         self.CM3_TO_L = 0.001
         self.OG_PHOTO = image_path  # Use the provided image_path
+        self.poly_accuracy = poly_accuracy
         # self.image_data = NULL
-        
+
 
     def prep_image(self):
         # Processing the image
@@ -52,110 +61,351 @@ class CalculateVolume:
 
         # Draw the contours on the outlined image
         cv2.drawContours(outlined_image, contours, -1, (0, 255, 0), 2)
+        # Convert BGR image to RGB format (Matplotlib uses RGB)
+        outlined_image_rgb = cv2.cvtColor(outlined_image, cv2.COLOR_BGR2RGB)
+
+        # Display the image using Matplotlib
+        # plt.imshow(outlined_image_rgb)
+        # plt.axis('off')  # Turn off axis labels
+        # plt.show()
 
         data_points = []
 
         for contour in contours:
-            arc_length = cv2.arcLength(contour, True)
-            min_arc_length_threshold = 100
-            if arc_length > min_arc_length_threshold:
-                for point in contour:
-                    x, y = point[0]
-                    data_points.append((x, y))
+                arc_length = cv2.arcLength(contour, True)
+                min_arc_length_threshold = 100
+                if arc_length > min_arc_length_threshold:
+                    for point in contour:
+                        x, y = point[0]
+                        # Flip the Y-coordinate here
+                        y = image.shape[0] - y
+                        data_points.append((x, y))
 
-        data_points = np.array(data_points)
 
         return data_points
+    
+    def process_data(self, data_from_image):
+            data_points = np.array(data_from_image)
+            split_points = self.split_points(data_points)
+            rotated_points =  self.rotate_points(split_points)
+            zerod_points =  self.zero_rotated_points(rotated_points)
+            mm_points = self.scale_to_mm(zerod_points)
+            zerod_points_clean = self.remove_duplicate_y(mm_points)
+            filled_x_points = self.interpolate_points(zerod_points_clean)
+            polynomial = self.fit_polynomial(filled_x_points)
+            volume_litres = self.calculate_volume_from_polygon(polynomial)
+            if(0):
+                self.plot_scaled_data_points(data_points)
+                self.plot_scaled_data_points(split_points)
+                self.plot_scaled_data_points(rotated_points)
+                self.plot_scaled_data_points(zerod_points)
+                self.plot_scaled_data_points(mm_points)
+                self.plot_scaled_data_points(zerod_points_clean)
+                self.plot_scaled_data_points(filled_x_points)
+            return volume_litres
+       
+       
+    def split_points(self, raw_points):
+        # Calculate the midpoint of the image
+        mid_x = self.POT_WIDTH_CM * self.CM_TO_MM / 2
 
-    def filter_sort_data_points(self, data_points):
-        # Find the leftmost and rightmost points
-        leftmost_point = data_points[data_points[:, 0].argmin()]
-        rightmost_point = data_points[data_points[:, 0].argmax()]
+        # Find the furthest left and right points
+        leftmost_x = raw_points[:, 0].min()
+        rightmost_x = raw_points[:, 0].max()
 
-        # Find the lowest x and y values
-        lowest_x = data_points[:, 0].min()
-        lowest_y = data_points[:, 1].min()
+        # Calculate the halfway point
+        halfway_x = (leftmost_x + rightmost_x) / 2
 
-        # Translate data points to the origin
-        data_points[:, 0] -= lowest_x
-        data_points[:, 1] -= lowest_y
+        # Filter the data points to keep only those on the left side (X <= halfway)
+        right_points = raw_points[raw_points[:, 0] > halfway_x]
+        return right_points
 
-        # Calculate the midpoint between leftmost and rightmost points
-        mid_point = (rightmost_point[0] - leftmost_point[0]) / 2 + leftmost_point[0]
-
-        # Create a mask to filter data points based on x-coordinate
-        mask = data_points[:, 0] <= mid_point
-        filtered_data_points = data_points[mask]
-
-        # Calculate the highest y value in filtered data points
-        highest_y = filtered_data_points[:, 1].max()
-
-        # Define thresholds for filtering
-        threshold_low = highest_y / 20
-        threshold_high = highest_y - (highest_y / 20)
-
-        # Apply additional filtering based on y-coordinate
-        lpf_mask = (filtered_data_points[:, 1] >= threshold_low) & (filtered_data_points[:, 1] < threshold_high)
-        filtered_data_points = filtered_data_points[lpf_mask]
-
-        # Sort and remove duplicates
-        sorted_data_points = np.unique(
-            filtered_data_points[~np.isnan(filtered_data_points[:, 0])][np.argsort(filtered_data_points[:, 0])],
-            axis=0)
-
-        return sorted_data_points
+    def rotate_points(self, split_points):
+         # Convert the angle from degrees to radians
+        swapped_points = np.column_stack((split_points[:, 1], split_points[:, 0]))
+        self.bot_left_point = swapped_points[swapped_points[:, 1].argmin()]
+        print(self.bot_left_point)
+        return swapped_points
 
 
-    def interpolate_flip_data_points(self, sorted_data_points):
-        _, unique_indices = np.unique(sorted_data_points[:, 1], return_index=True)
-        sorted_data_points = sorted_data_points[unique_indices]
-        x_coords = sorted_data_points[:, 0]
-        y_coords = sorted_data_points[:, 1]
+    def zero_rotated_points(self, rotated_points):
+        # Find the minimum X and Y values
+        min_x = rotated_points[:, 0].min()
+        min_y = rotated_points[:, 1].min()
+        
 
-        interp_func = interp1d(y_coords, x_coords)
+        # Subtract the minimum X and Y values to shift all points
+        zeroed_points = rotated_points - np.array([min_x, min_y])
+        return zeroed_points
+        
+    def scale_to_mm(self, zeroed_points):
+        # Calculate the scaling ratios for X and Y
+        x_ratio = 10*  self.POT_HEIGHT_CM / zeroed_points[:, 0].max()
+        y_ratio = 10* (self.POT_WIDTH_CM/2) / zeroed_points[:, 1].max()
 
-        desired_y_values = np.arange(min(y_coords), max(y_coords), 5)
-        interpolated_x_values = interp_func(desired_y_values)
-        interpolated_points = np.column_stack((interpolated_x_values, desired_y_values))
-        highest_y = np.max(sorted_data_points[:, 1])
-        interpolated_points_flipped = highest_y - interpolated_points
-        interpolated_points_flipped = interpolated_points_flipped[~np.isnan(interpolated_points_flipped).any(axis=1)]
+        # Scale the points
+        scaled_points = zeroed_points * np.array([x_ratio, y_ratio])
 
-        return interpolated_points_flipped
+        return scaled_points
 
-    def scale_data_points(self, interpolated_points_flipped):
-        filtered_points = []
+    def remove_duplicate_y(self, scaled_data_points):
+        # Find unique Y values and their corresponding indices
+        unique_y, unique_indices = np.unique(scaled_data_points[:, 1], return_index=True)
 
-        for point in interpolated_points_flipped:
-            # Check if any value in the point is NaN using numpy's isnan function
-            if np.isnan(point).any():
-                continue  # Skip this point if it contains NaN values
-            # Add the point to the filtered points list if it doesn't contain NaN values
-            filtered_points.append(point)
-        filtered_points = np.array(filtered_points)
+        # Select the points with unique Y values
+        unique_points = scaled_data_points[unique_indices]
 
-        highest_y_mm = np.max(filtered_points[:, 0])
-        highest_x_mm = np.max(filtered_points[:, 1])
-        y_ratio = ((self.POT_WIDTH_CM / 2) / highest_y_mm) * self.CM_TO_MM
-        x_ratio = (self.POT_HEIGHT_CM / highest_x_mm) * self.CM_TO_MM
-        scaled_data_points_mm = []
-        for point in filtered_points:
-            scaled_point = []
-            if point[0] != 0:
-                scaled_point.append(int(point[0] * y_ratio))
-            if point[1] != 0:
-                scaled_point.append(int(point[1] * x_ratio))
-            scaled_data_points_mm.append(scaled_point)
-        data_points_mm = np.array(scaled_data_points_mm)
-        return data_points_mm
+        return unique_points
+        
+        
+        
+    def interpolate_points(self, unique_points):
+        # Sort the unique points based on the X-coordinate
+        unique_points = unique_points[unique_points[:, 0].argsort()]
 
-    def generate_polynomial(self, data_points_mm):
-        degree = 10
-        x_coords_mm = data_points_mm[:, 1]
-        y_coords_mm = data_points_mm[:, 0]
-        coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
+        # Extract the X and Y coordinates
+        x_coords = unique_points[:, 0]
+        y_coords = unique_points[:, 1]
+
+        # Create an interpolation function with clipping
+        interpolator = interp1d(x_coords, y_coords, kind='linear')
+
+        # Define the range of x-values from 0 to the largest X-coordinate
+        largest_x = int(np.max(x_coords))
+        new_x_values = np.arange(0, largest_x + 1)
+
+        # Interpolate the corresponding y-values for the new x-values with clipping
+        new_y_values = np.clip(interpolator(new_x_values), y_coords.min(), y_coords.max())
+
+        # Create a new array with the clipped interpolated points
+        new_array = np.column_stack((new_x_values, new_y_values))
+
+        return new_array
+        
+    
+    def fit_polynomial(self, unique_points):
+        # Sort the unique points based on the X-coordinate
+        sorted_points = unique_points[unique_points[:, 0].argsort()]
+
+        # Extract X and Y coordinates
+        x_coords = sorted_points[:, 0]
+        y_coords = sorted_points[:, 1]
+
+        # Define the degree of the polynomial (adjust as needed)
+        degree = self.poly_accuracy  # You can change this degree as per your data
+
+        # Fit a polynomial to the data
+        coefficients = np.polyfit(x_coords, y_coords, degree)
+
+        # Create a polynomial function from the coefficients
         polynomial = np.poly1d(coefficients)
+
+        # Create a range of X values for the fitted curve
+        x_fit = np.linspace(min(x_coords), max(x_coords), 100)
+
+        # Calculate the corresponding Y values using the polynomial function
+        y_fit = polynomial(x_fit)
+
+        if(0):
+            # Create a plot to visualize the original data and the fitted curve
+            plt.figure(figsize=(8, 6))
+            plt.scatter(x_coords, y_coords, label='Data Points', color='blue')
+            plt.plot(x_fit, y_fit, label=f'Fitted Polynomial (Degree {degree})', color='red')
+            plt.xlabel('X-coordinate')
+            plt.ylabel('Y-coordinate')
+            plt.legend()
+            plt.grid(True)
+            plt.title('Polynomial Fit to Data Points')
+            # Show the plot
+            plt.show()
+
         return polynomial
+    
+        
+    def calculate_volume_from_polygon(self, polygon):
+       
+
+        H = 350  # Replace with your desired height
+
+        # Number of intervals for integration
+        num_intervals = 100
+
+        # Initialize the volume
+        volume = 0.0
+
+        # Create a figure and a 3D axis
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        for i in range(num_intervals):
+            h0 = i * H / num_intervals
+            h1 = (i + 1) * H / num_intervals
+            r0 = polygon(h0)
+            r1 = polygon(h1)
+            volume += (np.pi * r0**2 + np.pi * r1**2) / 2 * (h1 - h0)
+
+            # Calculate the radius for this circle (use the larger of r0 and r1)
+            radius = max(r0, r1)
+
+            # Create vertices for the circle (spanning 360 degrees)
+            theta = np.linspace(0, 2 * np.pi, 100)
+            x = radius * np.cos(theta)
+            y = radius * np.sin(theta)
+            z = np.array([h0] * 100)
+
+            # Plot the circle
+            ax.plot(x, y, z, color='b')
+
+        # Set axis labels
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+        # Set aspect ratio to 'auto' for better visualization
+        ax.set_box_aspect([1, 1, 1])
+
+        # Set limits for the axes
+        ax.set_xlim(-radius, radius)
+        ax.set_ylim(-radius, radius)
+        ax.set_zlim(0, H)
+
+        # Show the 3D plot
+        plt.show()
+
+        print("Volume of the cylinders:", volume / 1000000)
+
+        return volume
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # def filter_sort_data_points(self, data_points):
+    #     # Find the leftmost and rightmost points
+    #     leftmost_point = data_points[data_points[:, 0].argmin()]
+    #     rightmost_point = data_points[data_points[:, 0].argmax()]
+
+    #     # Find the lowest x and y values
+    #     lowest_x = data_points[:, 0].min()
+    #     lowest_y = data_points[:, 1].min()
+
+    #     # Translate data points to the origin
+    #     data_points[:, 0] -= lowest_x
+    #     data_points[:, 1] -= lowest_y
+
+    #     # Calculate the midpoint between leftmost and rightmost points
+    #     mid_point = (rightmost_point[0] - leftmost_point[0]) / 2 + leftmost_point[0]
+
+    #     # Create a mask to filter data points based on x-coordinate
+    #     mask = data_points[:, 0] <= mid_point
+    #     filtered_data_points = data_points[mask]
+
+    #     # Calculate the highest y value in filtered data points
+    #     highest_y = filtered_data_points[:, 1].max()
+
+    #     # Define thresholds for filtering
+    #     threshold_low = highest_y / 20
+    #     threshold_high = highest_y - (highest_y / 20)
+
+    #     # Apply additional filtering based on y-coordinate
+    #     lpf_mask = (filtered_data_points[:, 1] >= threshold_low) & (filtered_data_points[:, 1] < threshold_high)
+    #     filtered_data_points = filtered_data_points[lpf_mask]
+
+    #     # Sort and remove duplicates
+    #     sorted_data_points = np.unique(
+    #         filtered_data_points[~np.isnan(filtered_data_points[:, 0])][np.argsort(filtered_data_points[:, 0])],
+    #         axis=0)
+
+    #     return sorted_data_points
+
+    # def calculate_area_under_curve(self, unique_points):
+    #     # Sort the unique points based on the X-coordinate
+    #     sorted_points = unique_points[unique_points[:, 0].argsort()]
+
+    #     # Extract X and Y coordinates
+    #     x_coords = sorted_points[:, 0]
+    #     y_coords = sorted_points[:, 1]
+
+    #     # Calculate the area under the curve using the trapezoidal rule
+    #     area = trapz(y_coords, x_coords)
+
+    #     return area
+
+
+    # def interpolate_flip_data_points(self, sorted_data_points):
+    #     _, unique_indices = np.unique(sorted_data_points[:, 1], return_index=True)
+    #     sorted_data_points = sorted_data_points[unique_indices]
+    #     x_coords = sorted_data_points[:, 0]
+    #     y_coords = sorted_data_points[:, 1]
+
+    #     interp_func = interp1d(y_coords, x_coords)
+
+    #     desired_y_values = np.arange(min(y_coords), max(y_coords), 5)
+    #     interpolated_x_values = interp_func(desired_y_values)
+    #     interpolated_points = np.column_stack((interpolated_x_values, desired_y_values))
+    #     highest_y = np.max(sorted_data_points[:, 1])
+    #     interpolated_points_flipped = highest_y - interpolated_points
+    #     interpolated_points_flipped = interpolated_points_flipped[~np.isnan(interpolated_points_flipped).any(axis=1)]
+
+    #     return interpolated_points_flipped
+
+    # def scale_data_points(self, interpolated_points_flipped):
+    #     filtered_points = []
+
+    #     for point in interpolated_points_flipped:
+    #         # Check if any value in the point is NaN using numpy's isnan function
+    #         if np.isnan(point).any():
+    #             continue  # Skip this point if it contains NaN values
+    #         # Add the point to the filtered points list if it doesn't contain NaN values
+    #         filtered_points.append(point)
+    #     filtered_points = np.array(filtered_points)
+
+    #     highest_y_mm = np.max(filtered_points[:, 0])
+    #     highest_x_mm = np.max(filtered_points[:, 1])
+    #     y_ratio = ((self.POT_WIDTH_CM / 2) / highest_y_mm) * self.CM_TO_MM
+    #     x_ratio = (self.POT_HEIGHT_CM / highest_x_mm) * self.CM_TO_MM
+    #     scaled_data_points_mm = []
+    #     for point in filtered_points:
+    #         scaled_point = []
+    #         if point[0] != 0:
+    #             scaled_point.append(int(point[0] * y_ratio))
+    #         if point[1] != 0:
+    #             scaled_point.append(int(point[1] * x_ratio))
+    #         scaled_data_points_mm.append(scaled_point)
+    #     data_points_mm = np.array(scaled_data_points_mm)
+        
+    #     return data_points_mm
+
+    # def generate_polynomial(self, data_points_mm):
+    #     degree = 10
+    #     x_coords_mm = data_points_mm[:, 1]
+    #     y_coords_mm = data_points_mm[:, 0]
+    #     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
+    #     polynomial = np.poly1d(coefficients)
+    #     return polynomial
+    
+
+
+    # def calculate_volume_from_poly(self, poly, data_points_mm):
+    #     x_coords_mm = data_points_mm[:, 1]
+    #     x_values = np.linspace(min(x_coords_mm), max(x_coords_mm), 10)
+    #     y_values = poly(x_values)
+    #     area = trapz(y_values, x_values)
+    #     volume, error = quad(lambda x: np.pi * poly(x) ** 2, min(x_coords_mm), max(x_coords_mm))
+    #     volume_cm3 = volume * self.MM3_TO_CM3
+    #     litres = volume_cm3 * self.CM3_TO_L
+    #     return litres    
+    
     def calculate_volume(self):
        
         # Resize the image
@@ -165,36 +415,52 @@ class CalculateVolume:
         # Preprocess image and extract data points
         data_points = self.preprocess_image(resized_image)
 
+
+        volume_litres = self.process_data(data_points)
         # Filter and sort data points
-        sorted_data_points = self.filter_sort_data_points(data_points)
+        # sorted_data_points = self.filter_sort_data_points(data_points)
 
-        # Interpolate and flip data points
-        interpolated_points_flipped = self.interpolate_flip_data_points(sorted_data_points)
+        # # Interpolate and flip data points
+        # interpolated_points_flipped = self.interpolate_flip_data_points(sorted_data_points)
 
-        # Scale data points
-        data_points_mm = self.scale_data_points(interpolated_points_flipped)
+        # # Scale data points
+        # data_points_mm = self.scale_data_points(interpolated_points_flipped)
 
-        poly = self.generate_polynomial(data_points_mm)
+        # poly = self.generate_polynomial(data_points_mm)
 
-        volume_litres = self.calculate_volume_from_poly(poly, data_points_mm)
+        # volume_litres = self.calculate_volume_from_poly(poly, data_points_mm)
 
         return volume_litres
-
-    def calculate_volume_from_poly(self, poly, data_points_mm):
-        x_coords_mm = data_points_mm[:, 1]
-        x_values = np.linspace(min(x_coords_mm), max(x_coords_mm), 10)
-        y_values = poly(x_values)
-        area = trapz(y_values, x_values)
-        volume, error = quad(lambda x: np.pi * poly(x) ** 2, min(x_coords_mm), max(x_coords_mm))
-        volume_cm3 = volume * self.MM3_TO_CM3
-        litres = volume_cm3 * self.CM3_TO_L
-        return litres    
     
+            
+    def plot_scaled_data_points(self, data_points_mm):
+        # Extract x and y coordinates from scaled data points
+        x_coords_mm = data_points_mm[:, 0]
+        y_coords_mm = data_points_mm[:, 1]
 
+        # Create a scatter plot
+        plt.scatter(x_coords_mm, y_coords_mm, c='b', marker='o', label='Scaled Data Points')
+
+        # Label the axes
+        plt.xlabel('X Coordinates (mm)')
+        plt.ylabel('Y Coordinates (mm)')
+
+        # Set the maximum values for both X and Y axes to 1000
+        plt.xlim(0, 1000)
+        plt.ylim(0, 1000)
+
+        # Add a legend
+        plt.legend()
+
+        # Ensure equal aspect ratio
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        # Show the plot
+        plt.show()
 
 # Example usage
 if __name__ == "__main__":
-    calculator = CalculateVolume()
+    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 35, 39.2, 50)
     calculator.prep_image()
     volume_litres = calculator.calculate_volume()
     print("Volume in Liters:", volume_litres)

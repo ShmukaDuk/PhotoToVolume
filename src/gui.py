@@ -32,7 +32,7 @@ def select_image():
 def runCalculation():
     print("Grinding image:", image_path)
 
-    calculator = CalculateVolume(image_path, pot_width, pot_height)
+    calculator = CalculateVolume(image_path, pot_width, pot_height, 50)
     calculator.prep_image()
     volume_litres = calculator.calculate_volume()
     print("Volume in Liters:", volume_litres)
@@ -56,7 +56,7 @@ select_button.pack()
 # Create sliders to set POT_HEIGHT_CM and POT_WIDTH_CM
 height_label = tk.Label(frame, text="Pot Height (cm):")
 height_label.pack()
-height_slider = tk.Scale(frame, from_=0, to=100, orient="horizontal", length=200, resolution=0.1, command=update_pot_height, 50)
+height_slider = tk.Scale(frame, from_=0, to=100, orient="horizontal", length=200, resolution=0.1, command=update_pot_height)
 height_slider.pack()
 
 width_label = tk.Label(frame, text="Pot Width (cm):")

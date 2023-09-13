@@ -95,19 +95,17 @@ class CalculateVolume:
             polynomial = self.fit_polynomial(filled_x_points)
             volume_litres = self.calculate_volume_from_polygon(polynomial)
             if(0):
-                self.plot_scaled_data_points(data_points)
-                self.plot_scaled_data_points(split_points)
-                self.plot_scaled_data_points(rotated_points)
-                self.plot_scaled_data_points(zerod_points)
-                self.plot_scaled_data_points(mm_points)
-                self.plot_scaled_data_points(zerod_points_clean)
-                self.plot_scaled_data_points(filled_x_points)
+                self.plot_data_points(data_points)
+                self.plot_data_points(split_points)
+                self.plot_data_points(rotated_points)
+                self.plot_data_points(zerod_points)
+                self.plot_data_points(mm_points)
+                self.plot_data_points(zerod_points_clean)
+                self.plot_data_points(filled_x_points)
             return volume_litres
        
        
     def split_points(self, raw_points):
-        # Calculate the midpoint of the image
-        mid_x = self.POT_WIDTH_CM * self.CM_TO_MM / 2
 
         # Find the furthest left and right points
         leftmost_x = raw_points[:, 0].min()
@@ -140,8 +138,8 @@ class CalculateVolume:
         
     def scale_to_mm(self, zeroed_points):
         # Calculate the scaling ratios for X and Y
-        x_ratio = 10*  self.POT_HEIGHT_CM / zeroed_points[:, 0].max()
-        y_ratio = 10* (self.POT_WIDTH_CM/2) / zeroed_points[:, 1].max()
+        y_ratio = 5*  self.POT_WIDTH_CM / zeroed_points[:, 1].max()
+        x_ratio = 10* self.POT_HEIGHT_CM / zeroed_points[:, 0].max()
 
         # Scale the points
         scaled_points = zeroed_points * np.array([x_ratio, y_ratio])
@@ -206,7 +204,7 @@ class CalculateVolume:
         # Calculate the corresponding Y values using the polynomial function
         y_fit = polynomial(x_fit)
 
-        if(0):
+        if(1):
             # Create a plot to visualize the original data and the fitted curve
             plt.figure(figsize=(8, 6))
             plt.scatter(x_coords, y_coords, label='Data Points', color='blue')
@@ -254,20 +252,21 @@ class CalculateVolume:
             z = np.array([h0] * 100)
 
             # Plot the circle
-            ax.plot(x, y, z, color='b')
+            ax.plot(x, y, z, color='c')
 
         # Set axis labels
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
+        ax.set_xlabel('Width (mm)')
+        ax.set_ylabel('Width (mm)')
+        ax.set_zlabel('Height (mm)')
 
         # Set aspect ratio to 'auto' for better visualization
         ax.set_box_aspect([1, 1, 1])
 
         # Set limits for the axes
-        ax.set_xlim(-radius, radius)
-        ax.set_ylim(-radius, radius)
-        ax.set_zlim(0, H)
+        ax.set_xlim(-500, 500)
+        ax.set_ylim(-500, 500)
+        ax.set_zlim(-500, 500)
+        plt.gca().set_aspect('equal', adjustable='box')
 
         # Show the 3D plot
         plt.show()
@@ -276,136 +275,6 @@ class CalculateVolume:
 
         return volume
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # def filter_sort_data_points(self, data_points):
-    #     # Find the leftmost and rightmost points
-    #     leftmost_point = data_points[data_points[:, 0].argmin()]
-    #     rightmost_point = data_points[data_points[:, 0].argmax()]
-
-    #     # Find the lowest x and y values
-    #     lowest_x = data_points[:, 0].min()
-    #     lowest_y = data_points[:, 1].min()
-
-    #     # Translate data points to the origin
-    #     data_points[:, 0] -= lowest_x
-    #     data_points[:, 1] -= lowest_y
-
-    #     # Calculate the midpoint between leftmost and rightmost points
-    #     mid_point = (rightmost_point[0] - leftmost_point[0]) / 2 + leftmost_point[0]
-
-    #     # Create a mask to filter data points based on x-coordinate
-    #     mask = data_points[:, 0] <= mid_point
-    #     filtered_data_points = data_points[mask]
-
-    #     # Calculate the highest y value in filtered data points
-    #     highest_y = filtered_data_points[:, 1].max()
-
-    #     # Define thresholds for filtering
-    #     threshold_low = highest_y / 20
-    #     threshold_high = highest_y - (highest_y / 20)
-
-    #     # Apply additional filtering based on y-coordinate
-    #     lpf_mask = (filtered_data_points[:, 1] >= threshold_low) & (filtered_data_points[:, 1] < threshold_high)
-    #     filtered_data_points = filtered_data_points[lpf_mask]
-
-    #     # Sort and remove duplicates
-    #     sorted_data_points = np.unique(
-    #         filtered_data_points[~np.isnan(filtered_data_points[:, 0])][np.argsort(filtered_data_points[:, 0])],
-    #         axis=0)
-
-    #     return sorted_data_points
-
-    # def calculate_area_under_curve(self, unique_points):
-    #     # Sort the unique points based on the X-coordinate
-    #     sorted_points = unique_points[unique_points[:, 0].argsort()]
-
-    #     # Extract X and Y coordinates
-    #     x_coords = sorted_points[:, 0]
-    #     y_coords = sorted_points[:, 1]
-
-    #     # Calculate the area under the curve using the trapezoidal rule
-    #     area = trapz(y_coords, x_coords)
-
-    #     return area
-
-
-    # def interpolate_flip_data_points(self, sorted_data_points):
-    #     _, unique_indices = np.unique(sorted_data_points[:, 1], return_index=True)
-    #     sorted_data_points = sorted_data_points[unique_indices]
-    #     x_coords = sorted_data_points[:, 0]
-    #     y_coords = sorted_data_points[:, 1]
-
-    #     interp_func = interp1d(y_coords, x_coords)
-
-    #     desired_y_values = np.arange(min(y_coords), max(y_coords), 5)
-    #     interpolated_x_values = interp_func(desired_y_values)
-    #     interpolated_points = np.column_stack((interpolated_x_values, desired_y_values))
-    #     highest_y = np.max(sorted_data_points[:, 1])
-    #     interpolated_points_flipped = highest_y - interpolated_points
-    #     interpolated_points_flipped = interpolated_points_flipped[~np.isnan(interpolated_points_flipped).any(axis=1)]
-
-    #     return interpolated_points_flipped
-
-    # def scale_data_points(self, interpolated_points_flipped):
-    #     filtered_points = []
-
-    #     for point in interpolated_points_flipped:
-    #         # Check if any value in the point is NaN using numpy's isnan function
-    #         if np.isnan(point).any():
-    #             continue  # Skip this point if it contains NaN values
-    #         # Add the point to the filtered points list if it doesn't contain NaN values
-    #         filtered_points.append(point)
-    #     filtered_points = np.array(filtered_points)
-
-    #     highest_y_mm = np.max(filtered_points[:, 0])
-    #     highest_x_mm = np.max(filtered_points[:, 1])
-    #     y_ratio = ((self.POT_WIDTH_CM / 2) / highest_y_mm) * self.CM_TO_MM
-    #     x_ratio = (self.POT_HEIGHT_CM / highest_x_mm) * self.CM_TO_MM
-    #     scaled_data_points_mm = []
-    #     for point in filtered_points:
-    #         scaled_point = []
-    #         if point[0] != 0:
-    #             scaled_point.append(int(point[0] * y_ratio))
-    #         if point[1] != 0:
-    #             scaled_point.append(int(point[1] * x_ratio))
-    #         scaled_data_points_mm.append(scaled_point)
-    #     data_points_mm = np.array(scaled_data_points_mm)
-        
-    #     return data_points_mm
-
-    # def generate_polynomial(self, data_points_mm):
-    #     degree = 10
-    #     x_coords_mm = data_points_mm[:, 1]
-    #     y_coords_mm = data_points_mm[:, 0]
-    #     coefficients = np.polyfit(x_coords_mm, y_coords_mm, degree)
-    #     polynomial = np.poly1d(coefficients)
-    #     return polynomial
-    
-
-
-    # def calculate_volume_from_poly(self, poly, data_points_mm):
-    #     x_coords_mm = data_points_mm[:, 1]
-    #     x_values = np.linspace(min(x_coords_mm), max(x_coords_mm), 10)
-    #     y_values = poly(x_values)
-    #     area = trapz(y_values, x_values)
-    #     volume, error = quad(lambda x: np.pi * poly(x) ** 2, min(x_coords_mm), max(x_coords_mm))
-    #     volume_cm3 = volume * self.MM3_TO_CM3
-    #     litres = volume_cm3 * self.CM3_TO_L
-    #     return litres    
-    
     def calculate_volume(self):
        
         # Resize the image
@@ -417,23 +286,10 @@ class CalculateVolume:
 
 
         volume_litres = self.process_data(data_points)
-        # Filter and sort data points
-        # sorted_data_points = self.filter_sort_data_points(data_points)
-
-        # # Interpolate and flip data points
-        # interpolated_points_flipped = self.interpolate_flip_data_points(sorted_data_points)
-
-        # # Scale data points
-        # data_points_mm = self.scale_data_points(interpolated_points_flipped)
-
-        # poly = self.generate_polynomial(data_points_mm)
-
-        # volume_litres = self.calculate_volume_from_poly(poly, data_points_mm)
 
         return volume_litres
-    
-            
-    def plot_scaled_data_points(self, data_points_mm):
+
+    def plot_data_points(self, data_points_mm):
         # Extract x and y coordinates from scaled data points
         x_coords_mm = data_points_mm[:, 0]
         y_coords_mm = data_points_mm[:, 1]
@@ -460,7 +316,7 @@ class CalculateVolume:
 
 # Example usage
 if __name__ == "__main__":
-    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 35, 39.2, 50)
+    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 22.5, 35, 10)
     calculator.prep_image()
     volume_litres = calculator.calculate_volume()
     print("Volume in Liters:", volume_litres)

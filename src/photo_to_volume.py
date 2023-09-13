@@ -7,14 +7,13 @@ from rembg import remove
 import matplotlib.pyplot as plt
 
 class CalculateVolume:
-    def __init__(self, image_path):
-        self.POT_HEIGHT_CM = 18
-        self.POT_WIDTH_CM = 24
+    def __init__(self, image_path, pot_width, pot_height):
+        self.POT_HEIGHT_CM = pot_height
+        self.POT_WIDTH_CM = pot_width
         self.CM_TO_MM = 10
         self.MM3_TO_CM3 = 0.001
         self.CM3_TO_L = 0.001
         self.OG_PHOTO = image_path  # Use the provided image_path
-        self.POT_NO_BG = 'images/cropped_pot.png'
         # self.image_data = NULL
         
 
@@ -26,7 +25,6 @@ class CalculateVolume:
         output = remove(input)
 
         # Save the image with transparency as PNG
-        output.save(self.POT_NO_BG)
         self.no_bg_image = cv2.cvtColor(np.array(output), cv2.COLOR_RGB2BGR)
 
     def resize_image(self, image, target_size):

@@ -170,7 +170,7 @@ def calculate_volume(polynomial, data_points_mm):
     volume, error = quad(lambda x: np.pi * polynomial(x)**2, min(x_coords_mm), max(x_coords_mm))
     volume_cm3 = volume * MM3_TO_CM3
     litres = volume_cm3 * CM3_TO_L
-    plot_polynomial(polynomial, min(x_coords_mm), max(x_coords_mm), data_points_mm)
+    # plot_polynomial(polynomial, min(x_coords_mm), max(x_coords_mm), data_points_mm)
     return litres
 
 

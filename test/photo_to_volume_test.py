@@ -15,31 +15,41 @@ sys.path.insert(0, parent_dir)
 from src.photo_to_volume import CalculateVolume
 
 # Rest of your unit test code here
-
 class TestCalculateVolume(unittest.TestCase):
-    def test_resize_image(self):
+    def setUp(self):
         # Create an instance of your CalculateVolume class
-        calculator = CalculateVolume(image_path='test/data/kfc_pot.jpg')
+        self.calculator = CalculateVolume(image_path=None)  # Initialize with a placeholder image_path
 
-        # Load a test image
-        test_image = cv2.imread('test/data/kfc_pot.jpg')
+    def test_resize_image(self):
+        # List all files ending with .jpg in the data/ directory
+        data_dir = 'test/data'
+        jpg_files = [f for f in os.listdir(data_dir) if f.endswith('.jpg')]
 
-        # Define a target size
-        target_size = (500, 500)
+        for jpg_file in jpg_files:
+            print("Testing: ",  jpg_file)
+            # Load a test image
+            test_image = cv2.imread(os.path.join(data_dir, jpg_file))
 
-        # Resize the image using the function you want to test
-        resized_image = calculator.resize_image(test_image, target_size)
+            # Define a target size
+            target_size = (500, 500)
 
-        # Get the dimensions of the resized image
-        resized_height, resized_width, _ = resized_image.shape
+            # Resize the image using the function you want to test
+            resized_image = self.calculator.resize_image(test_image, target_size)
 
-        # Calculate the expected dimensions while maintaining the aspect ratio
-        expected_width = min(target_size[0], int(target_size[1] * (test_image.shape[1] / test_image.shape[0])))
-        expected_height = min(target_size[1], int(target_size[0] * (test_image.shape[0] / test_image.shape[1])))
+            # Get the dimensions of the resized image
+            resized_height, resized_width, _ = resized_image.shape
 
-        # Assert that the resized image dimensions match the expected dimensions
-        self.assertEqual(resized_width, expected_width)
-        self.assertEqual(resized_height, expected_height)
+            # Calculate the expected dimensions while maintaining the aspect ratio
+            expected_width = min(target_size[0], int(target_size[1] * (test_image.shape[1] / test_image.shape[0])))
+            expected_height = min(target_size[1], int(target_size[0] * (test_image.shape[0] / test_image.shape[1])))
+
+            # Assert that the resized image dimensions match the expected dimensions
+            self.assertEqual(resized_width, expected_width)
+            self.assertEqual(resized_height, expected_height)
+            out_dir = 'test/out'
+            resized_filename = os.path.splitext(jpg_file)[0] + '_resized.jpg'
+            output_path = os.path.join(out_dir, resized_filename)
+            cv2.imwrite(output_path, resized_image)
 
 if __name__ == '__main__':
     unittest.main()

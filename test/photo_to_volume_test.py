@@ -18,7 +18,7 @@ from src.photo_to_volume import CalculateVolume
 class TestCalculateVolume(unittest.TestCase):
     def setUp(self):
         # Create an instance of your CalculateVolume class
-        self.calculator = CalculateVolume(image_path=None)  # Initialize with a placeholder image_path
+        self.calculator = CalculateVolume(image_path=None, pot_width=None, pot_height=None, poly_accuracy='10')  # Initialize with a placeholder image_path
 
     def test_resize_image(self):
         # List all files ending with .jpg in the data/ directory
@@ -50,6 +50,26 @@ class TestCalculateVolume(unittest.TestCase):
             resized_filename = os.path.splitext(jpg_file)[0] + '_resized.jpg'
             output_path = os.path.join(out_dir, resized_filename)
             cv2.imwrite(output_path, resized_image)
+
+
+    def test_calc_volume(self):
+        data_dir = 'test/data'
+        jpg_files = [f for f in os.listdir(data_dir) if f.endswith('.jpg')]
+        for jpg_file in jpg_files:
+            print('file name: ')
+            print(jpg_file)
+            pot_height_mm = int(jpg_file.split('_')[-1].split("x")[1])
+            pot_width_mm = int(jpg_file.split('_')[-1].split("x")[0])
+            pot_volume_l = int(jpg_file.split('_')[-1].split("x")[2].replace('l.jpg',''))
+            
+            print( pot_height_mm, pot_width_mm, pot_volume_l)
+
+            
+            calculator = CalculateVolume(os.path.join(data_dir, jpg_file), pot_width_mm/10, pot_height_mm/10, '10')
+            calculator.prep_image()
+            volume_litres = calculator.calculate_volume()
+            print('POT: ',jpg_file, "Volume in Liters:",  volume_litres)
+            calculator.create_plots()
 
 if __name__ == '__main__':
     unittest.main()

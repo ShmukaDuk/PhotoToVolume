@@ -14,6 +14,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # Add this import
+from mpl_toolkits.mplot3d import Axes3D  # Importing the necessary module
+
 class CalculateVolume:
     def __init__(self, image_path, pot_width, pot_height, poly_accuracy):
         self.POT_HEIGHT_CM = pot_height
@@ -23,18 +25,72 @@ class CalculateVolume:
         self.CM3_TO_L = 0.001
         self.OG_PHOTO = image_path  # Use the provided image_path
         self.poly_accuracy = int(poly_accuracy)
+        self.pot_name = image_path
         # self.image_data = NULL
+        
+                
+    def create_plots(self):
+            # Create some sample data
+            x = np.linspace(0, 2 * np.pi, 100)
+            y = np.sin(x)
+
+            # Create a figure with multiple subplots
+            self.fig, self.axes = plt.subplots(2, 3, figsize=(15, 10))           
+
+            # Display self.no_bg_image in a subplot
+            ax_image = self.axes[0, 0]  # Adjust the row and column as needed
+            ax_image.imshow(self.origional_image)
+            ax_image.set_title('Image Plot')
+            ax_image = self.axes[0, 1]  # Adjust the row and column as needed
+            ax_image.imshow(self.no_bg_image)
+            ax_image.set_title('Image Plot')
+            ax_image = self.axes[0, 2]  # Adjust the row and column as needed
+            ax_image.imshow(self.resized_image)
+            ax_image.set_title('Resized image')
+            ax_image = self.axes[1, 0]  # Adjust the row and column as needed
+            x_coords_mm = [point[0] for point in self.contour_points]
+            y_coords_mm = [point[1] for point in self.contour_points]
+            # Create a scatter plot
+            ax_image.scatter(x_coords_mm, y_coords_mm, c='b', marker='o', label='Scaled Data Points')
+            
+            
+            #plot poly
+            ax_image = self.axes[1, 1]  # Adjust the row and column as needed
+            
+            x_coords = self.sorted_poly_points[:, 0]
+            y_coords = self.sorted_poly_points[:, 1]
+            x_fit = np.linspace(min(x_coords), max(x_coords), 100)
+            y_fit = self.polynomial(x_fit)
+            ax_image.scatter(x_coords, y_coords, label='Data Points', color='blue')
+            ax_image.plot(x_fit, y_fit, label=f'Fitted Polynomial (Degree {self.poly_accuracy})', color='red')
+            
+            # 3D plot
+
+
+
+            plt.tight_layout()
+            plt.show()
+            
+              
+                
+  
 
 
     def prep_image(self):
         # Processing the image
         input = Image.open(self.OG_PHOTO)
-
+        if input.width > input.height:
+            # Rotate the image by 90 degrees (clockwise)
+            input = input.transpose(Image.ROTATE_270)
+        self.origional_image = input
         # Removing the background from the given image
         output = remove(input)
 
         # Save the image with transparency as PNG
-        self.no_bg_image = cv2.cvtColor(np.array(output), cv2.COLOR_RGB2BGR)
+        self.no_bg_image = cv2.cvtColor(np.array(output), cv2.COLOR_RGB2BGR) 
+        
+        
+        
 
     def resize_image(self, image, target_size):
         aspect_ratio = image.shape[1] / image.shape[0]
@@ -44,6 +100,7 @@ class CalculateVolume:
             target_height = target_size[1]
             target_width = int(target_height * aspect_ratio)
         resized_image = cv2.resize(image, (target_width, target_height), interpolation=cv2.INTER_LANCZOS4)
+        self.resized_image = resized_image
         return resized_image
 
     def preprocess_image(self, image):
@@ -76,7 +133,7 @@ class CalculateVolume:
                         y = image.shape[0] - y
                         data_points.append((x, y))
 
-
+        self.contour_points = data_points
         return data_points
     
     def process_data(self, data_from_image):
@@ -89,14 +146,7 @@ class CalculateVolume:
             filled_x_points = self.interpolate_points(zerod_points_clean)
             polynomial = self.fit_polynomial(filled_x_points)
             volume_litres = self.calculate_volume_from_polygon(polynomial)
-            if(0):
-                self.plot_data_points(data_points)
-                self.plot_data_points(split_points)
-                self.plot_data_points(rotated_points)
-                self.plot_data_points(zerod_points)
-                self.plot_data_points(mm_points)
-                self.plot_data_points(zerod_points_clean)
-                self.plot_data_points(filled_x_points)
+           
             return volume_litres
        
        
@@ -179,7 +229,7 @@ class CalculateVolume:
     def fit_polynomial(self, unique_points):
         # Sort the unique points based on the X-coordinate
         sorted_points = unique_points[unique_points[:, 0].argsort()]
-
+        self.sorted_poly_points = sorted_points
         # Extract X and Y coordinates
         x_coords = sorted_points[:, 0]
         self.largest_point = (max(x_coords))
@@ -193,25 +243,15 @@ class CalculateVolume:
 
         # Create a polynomial function from the coefficients
         polynomial = np.poly1d(coefficients)
-
+        self.polynomial = polynomial
         # Create a range of X values for the fitted curve
         x_fit = np.linspace(min(x_coords), max(x_coords), 100)
-
         # Calculate the corresponding Y values using the polynomial function
         y_fit = polynomial(x_fit)
-
-        if(1):
-            # Create a plot to visualize the original data and the fitted curve
-            plt.figure(figsize=(8, 6))
-            plt.scatter(x_coords, y_coords, label='Data Points', color='blue')
-            plt.plot(x_fit, y_fit, label=f'Fitted Polynomial (Degree {degree})', color='red')
-            plt.xlabel('X-coordinate')
-            plt.ylabel('Y-coordinate')
-            plt.legend()
-            plt.grid(True)
-            plt.title('Polynomial Fit to Data Points')
-            # Show the plot
-            plt.show()
+        
+        self.polynomail = polynomial
+        self.x_fit = np.linspace(min(x_coords), max(x_coords), 100)
+        self.y_fit = polynomial(x_fit)
 
         return polynomial
     
@@ -264,9 +304,7 @@ class CalculateVolume:
         ax.set_zlim(-500, 500)
         plt.gca().set_aspect('equal', adjustable='box')
 
-        # Show the 3D plot
-        plt.show()
-
+        
         print("Volume of the cylinders:", volume / 1000000)
 
         return volume / 1000000
@@ -285,35 +323,12 @@ class CalculateVolume:
 
         return volume_litres
 
-    def plot_data_points(self, data_points_mm):
-        # Extract x and y coordinates from scaled data points
-        x_coords_mm = data_points_mm[:, 0]
-        y_coords_mm = data_points_mm[:, 1]
-
-        # Create a scatter plot
-        plt.scatter(x_coords_mm, y_coords_mm, c='b', marker='o', label='Scaled Data Points')
-
-        # Label the axes
-        plt.xlabel('X Coordinates (mm)')
-        plt.ylabel('Y Coordinates (mm)')
-
-        # Set the maximum values for both X and Y axes to 1000
-        plt.xlim(0, 1000)
-        plt.ylim(0, 1000)
-
-        # Add a legend
-        plt.legend()
-
-        # Ensure equal aspect ratio
-        plt.gca().set_aspect('equal', adjustable='box')
-
-        # Show the plot
-        plt.show()
-
+   
 # Example usage
 if __name__ == "__main__":
-    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/brown_pot_225x35x21l.jpg", 32, 37, 10)
+    calculator = CalculateVolume("C:/dev/git/photo-to-volume/test/data/black_pot_276x276x11l.jpg", 32, 37, 10)
     calculator.prep_image()
     volume_litres = calculator.calculate_volume()
+    calculator.create_plots()
     print("Volume in Liters:", volume_litres)
   
